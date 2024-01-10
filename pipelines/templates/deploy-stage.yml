@@ -1,0 +1,81 @@
+# 'parameters' is a dictionary that defines the parameters that can be passed to this stage
+parameters:
+# 'serviceConnection' is the name of the Azure service connection to use for deployments
+  serviceConnection: ''
+
+# 'variableGroup' is the name of the Azure DevOps variable group to use for this stage
+# Variable groups allow you to manage and securely store your project's variables in one place
+  variableGroup: ''
+
+# 'stageName' is the name of this stage
+# This name is used in the pipeline UI and logs to identify this stage
+  stageName: ''
+
+# 'environment' is the name of the environment to deploy to
+# This could be a name like 'dev', 'test', 'staging', or 'production'
+  environment: ''
+
+# 'DependsOn' is a list of stages that this stage depends on
+# This stage will not start until all the stages in 'DependsOn' have completed successfully
+  DependsOn: []
+
+
+stages:
+- stage: ${{ parameters.stageName }}
+  displayName: 'Deploy to the ${{ parameters.stageName }} environment'
+  dependsOn: ${{ parameters.DependsOn }}
+  condition:  succeeded()
+  jobs:
+  - deployment: Deploy
+    environment: ${{ parameters.environment }}
+    variables:
+    - group: ${{ parameters.variableGroup }}
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: infra
+          - download: current
+            artifact: api
+          # This task deploys an ARM template to a resource group
+          # The parameters for the deployment are passed as overrideParameters
+          # The deployment mode is set to 'Incremental' which means that only the changes specified in the template are applied
+          # The outputs of the deployment are stored in 'resourceGroupDeploymentOutputs'
+          - task: AzureResourceManagerTemplateDeployment@3
+            inputs:
+              azureResourceManagerConnection: ${{ parameters.serviceConnection }}
+              subscriptionId: ${{ parameters.subscriptionId }}
+              action: 'Create Or Update Resource Group'
+              resourceGroupName: '$(resourceGroupName)'
+              location: '$(location)'
+              templateLocation: 'Linked artifact'
+              csmFile: '$(Pipeline.Workspace)/drop/azuredeploy.json'
+              csmParametersFile: '$(Pipeline.Workspace)/drop/azuredeploy.parameters.json'
+              overrideParameters: '-environment $(environment) -sku $(sku)'
+              deploymentMode: 'Incremental'
+              deploymentOutputs: 'resourceGroupDeploymentOutputs'
+
+          # This task runs a PowerShell script
+          # The script converts the 'resourceGroupDeploymentOutputs' from a JSON string to a PowerShell object
+          # Then it iterates over the properties of the object and sets each one as a pipeline variable
+          - task: PowerShell@2
+            inputs:
+              targetType: 'inline'
+              script: |
+                $outputs = ConvertFrom-Json '$(resourceGroupDeploymentOutputs)'
+                foreach ($output in $outputs.PSObject.Properties) {
+                    Write-Host "##vso[task.setvariable variable=$($output.Name)]$($output.Value.value)"
+                }
+
+          # This task deploys a web app to Azure
+          # The web app is of type 'webAppLinux'
+          # The name of the web app and the package to deploy are specified
+          # The app settings are passed as '-environment $(environment)'
+          - task: AzureWebApp@1
+            inputs:
+              azureSubscription: ${{ parameters.serviceConnection }}
+              appType: 'webAppLinux'
+              appName: '$(webAppName)'
+              package: '$(Pipeline.Workspace)/api/**/*.zip'
+              appSettings: '-environment $(environment)'

@@ -1,0 +1,92 @@
+# File: templates/build-dotnet.yml
+
+parameters:
+- name: 'solution'  
+  type: string
+  default: '**/*.sln'
+- name: 'buildConfiguration'
+  type: string
+  default: 'Release'
+- name: 'buildPlatform'
+  type: string
+  default: 'Any CPU'
+- name: 'codeCoverage'
+  type: number
+  default: 0
+  
+stages:
+- stage: 'Build'
+  displayName: 'Dotnet Build stage'
+  jobs:
+  - job: 'Build'
+    steps:
+    - task: DotNetCoreCLI@2
+      inputs:
+        command: 'restore'
+        projects: '${{ parameters.solution }}'
+        feedsToUse: 'select'
+
+    - task: DotNetCoreCLI@2
+      displayName: Build
+      inputs:
+        command: 'build'
+        projects: '${{ parameters.solution }}'
+        arguments: '--configuration ${{ parameters.buildConfiguration }} --no-restore'
+
+    # Run all tests with "/p:CollectCoverage=true /p:CoverletOutputFormat=cobertura" to generate the code coverage file
+    - task: DotNetCoreCLI@2
+      displayName: dotnet test
+      inputs:
+        command: 'test'
+        projects: '${{ parameters.solution }}'
+        arguments: '--configuration ${{ parameters.buildConfiguration }} --logger trx --collect:"XPlat Code Coverage"'
+        publishTestResults: false
+      continueOnError: true
+
+    - task: reportgenerator@4
+      inputs:
+        reports: '$(Build.SourcesDirectory)/**/coverage.cobertura.xml'
+        targetdir: 'coveragereport'
+        sourcedirs: '$(Build.SourcesDirectory)'
+
+    - task: PublishCodeCoverageResults@1
+      displayName: 'Publish code coverage'
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '$(Build.SourcesDirectory)/coveragereport/Cobertura.xml'
+        reportDirectory: '$(Build.SourcesDirectory)/coveragereport'
+
+    - task: PublishTestResults@2
+      inputs:
+        testResultsFormat: 'VSTest'
+        testResultsFiles: '**/*.trx'
+        mergeTestResults: true
+        failTaskOnFailedTests: true
+
+    - task: BuildQualityChecks@9
+      condition: gt(${{ parameters.codeCoverage }}, 0)
+      inputs:
+        checkCoverage: true
+        coverageFailOption: 'fixed'
+        coverageType: 'lines'
+        coverageThreshold: '${{ parameters.codeCoverage }}'
+
+    - script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > buildinfo.txt'
+      displayName: 'Write build info'
+      workingDirectory: $(Build.ArtifactStagingDirectory)
+
+    - task: DotNetCoreCLI@2
+      inputs:
+        command: publish
+        publishWebProjects: True
+        arguments: '--configuration ${{ parameters.BuildConfiguration }} --output $(Build.ArtifactStagingDirectory)'
+        zipAfterPublish: True
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(Build.SourcesDirectory)/infra'
+        ArtifactName: 'infra'
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'api'

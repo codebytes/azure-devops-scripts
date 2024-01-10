@@ -1,0 +1,52 @@
+# This YAML file defines a pipeline for building and deploying an ASP.NET Core project targeting .NET
+
+# The pipeline is triggered whenever a commit is pushed to the 'main' branch
+trigger:
+- main
+
+# The pipeline runs on an Ubuntu VM
+pool:
+  vmImage: 'ubuntu-latest'
+
+# The pipeline is divided into stages
+stages:
+# The first stage uses the 'dotnet-build.yml' template to build the solution and run tests
+# The 'solution' parameter is set to '**/*.sln', which means that all solution files in the repository will be built
+# The 'codeCoverage' parameter is set to 10, which means that at least 10% code coverage will be needed
+- template: templates/dotnet-build.yml  # Template reference
+  parameters:
+    solution: '**/*.sln'
+    codeCoverage: 10
+
+# The second stage uses the 'deploy-stage.yml' template to deploy the application to the 'dev' environment
+# The 'serviceConnection', 'variableGroup', 'environment', and 'stageName' parameters are set to appropriate values for the 'dev' environment
+# The 'DependsOn' parameter is set to [Build], which means that this stage will not start until the 'Build' stage has completed successfully
+- template: templates/deploy-stage.yml  # Template reference
+  parameters:
+    serviceConnection: 'fta'
+    variableGroup: 'Dev'
+    environment: 'dev'
+    stageName: 'Dev'
+    DependsOn: [Build]
+
+# The third stage uses the 'deploy-stage.yml' template to deploy the application to the 'qa' environment
+# The 'serviceConnection', 'variableGroup', 'environment', and 'stageName' parameters are set to appropriate values for the 'qa' environment
+# The 'DependsOn' parameter is set to [Dev], which means that this stage will not start until the 'Dev' stage has completed successfully
+- template: templates/deploy-stage.yml  # Template reference
+  parameters:
+    serviceConnection: 'fta'
+    variableGroup: 'QA'
+    environment: 'qa'
+    stageName: 'QA'
+    DependsOn: [Dev]
+
+# The fourth stage uses the 'deploy-stage.yml' template to deploy the application to the 'prod' environment
+# The 'serviceConnection', 'variableGroup', 'environment', and 'stageName' parameters are set to appropriate values for the 'prod' environment
+# The 'DependsOn' parameter is set to [QA], which means that this stage will not start until the 'QA' stage has completed successfully
+- template: templates/deploy-stage.yml  # Template reference
+  parameters:
+    serviceConnection: 'fta'
+    variableGroup: 'Prod'
+    environment: 'prod'
+    stageName: 'Prod'
+    DependsOn: [QA]    
