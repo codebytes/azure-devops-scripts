@@ -32,7 +32,6 @@ recordFormat='{Id:id,AreaPath:fields."System.AreaPath",AssignedTo:fields."System
 mkdir -p workitems
 
 allids=()
-recordFormat='{Id:id,AssignedTo:fields."System.AssignedTo".displayName,State:fields."System.State",Reason:fields."System.Reason",CreatedDate:fields."System.CreatedDate",ChangedDate:fields."System.ChangedDate",Title:fields."System.Title",StateChangeDate:fields."Microsoft.VSTS.Common.StateChangeDate",ClosedDate:fields."Microsoft.VSTS.Common.ClosedDate",Category:fields."Custom.Category",Categories:fields."Custom.Categories",CustomerName:fields."Custom.CustomerName",TargetSemester:fields."Custom.TargetSemester",PriorityRank:fields."Custom.PriorityRank",ProgramName:fields."Custom.ProgramName",Service:fields."Custom.Service",Description:fields."System.Description",ActionRequiredfromPG:fields."Custom.ActionRequiredfromPG",CustomerImpact:fields."Custom.CustomerImpact",Tags:fields."System.Tags",EngagementID:fields."Custom.EngagementID",FTASubmitter:fields."Custom.FTASubmitter".displayName}'
 
 # this is to tell bash to handle tab as a delimiter
 old_ifs="$IFS"
